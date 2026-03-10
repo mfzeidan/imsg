@@ -250,16 +250,39 @@ extension MessageStore {
         let totalBytes = int64Value(row[4]) ?? 0
         let isSticker = boolValue(row[5])
         let resolved = AttachmentResolver.resolve(filename)
+        var finalPath = resolved.resolved
+        var finalMime = mimeType
+        var finalMissing = resolved.missing
+        // Convert .caf audio to .m4a for Whisper compatibility
+        if !resolved.missing && uti == "com.apple.coreaudio-format" {
+          let converted = AttachmentResolver.convertAudioIfNeeded(resolved.resolved)
+          finalPath = converted.path
+          if let convertedMime = converted.mimeType {
+            finalMime = convertedMime
+          }
+          let convertedExists = FileManager.default.fileExists(atPath: finalPath)
+          finalMissing = !convertedExists
+        }
+        // Convert GIF to static PNG for model compatibility
+        if !resolved.missing && uti == "com.compuserve.gif" {
+          let converted = AttachmentResolver.convertGifIfNeeded(resolved.resolved)
+          finalPath = converted.path
+          if let convertedMime = converted.mimeType {
+            finalMime = convertedMime
+          }
+          let convertedExists = FileManager.default.fileExists(atPath: finalPath)
+          finalMissing = !convertedExists
+        }
         metas.append(
           AttachmentMeta(
             filename: filename,
             transferName: transferName,
             uti: uti,
-            mimeType: mimeType,
+            mimeType: finalMime,
             totalBytes: totalBytes,
             isSticker: isSticker,
-            originalPath: resolved.resolved,
-            missing: resolved.missing
+            originalPath: finalPath,
+            missing: finalMissing
           ))
       }
       return metas
